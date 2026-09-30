@@ -1730,15 +1730,80 @@ TUDO </h3>
             renderCatalog();
         }
 
-        function previewImageFile(input) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const preview = document.getElementById('pImgPreview');
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
+        const PRODUCT_IMAGE_MAX_BYTES = 650000;
+        let productImageVersion = 0;
+        let productImageProcessing = false;
+        let productImageError = false;
+
+        function imageStatus(message) {
+            let status = document.getElementById('pImgStatus');
+            if (!status) {
+                status = document.createElement('div');
+                status.id = 'pImgStatus';
+                status.setAttribute('role', 'status');
+                status.style.cssText = 'font-size:13px;margin:8px 0;';
+                document.getElementById('pImgUrl').before(status);
+            }
+            status.textContent = message;
+        }
+
+        async function resizeProductImage(file) {
+            const url = URL.createObjectURL(file);
+            try {
+                const photo = await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = () => reject(new Error('Não foi possível abrir a foto. Use uma imagem JPG, PNG ou WebP.'));
+                    img.src = url;
+                });
+                let scale = Math.min(1, 800 / Math.max(photo.naturalWidth, photo.naturalHeight));
+                const canvas = document.createElement('canvas');
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    canvas.width = Math.max(1, Math.round(photo.naturalWidth * scale));
+                    canvas.height = Math.max(1, Math.round(photo.naturalHeight * scale));
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) throw new Error('Seu navegador não conseguiu processar a foto.');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
+                    for (const quality of [0.85, 0.75, 0.65, 0.55]) {
+                        const data = canvas.toDataURL('image/jpeg', quality);
+                        if (data.startsWith('data:image/jpeg') && new Blob([data]).size <= PRODUCT_IMAGE_MAX_BYTES) {
+                            return { data, width: canvas.width, height: canvas.height };
+                        }
+                    }
+                    scale *= 0.75;
                 }
-                reader.readAsDataURL(input.files[0]);
+                throw new Error('Não foi possível reduzir a foto. Selecione outra imagem.');
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        async function previewImageFile(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const version = ++productImageVersion;
+            productImageProcessing = true;
+            productImageError = false;
+            const preview = document.getElementById('pImgPreview');
+            preview.removeAttribute('src');
+            preview.style.display = 'none';
+            imageStatus('Ajustando a foto…');
+            try {
+                const result = await resizeProductImage(file);
+                if (version !== productImageVersion) return;
+                preview.src = result.data;
+                preview.style.display = 'block';
+                document.getElementById('pImgUrl').value = '';
+                imageStatus('Foto pronta: ' + result.width + ' × ' + result.height + ' pixels.');
+            } catch (error) {
+                if (version !== productImageVersion) return;
+                productImageError = true;
+                imageStatus(error.message);
+                input.value = '';
+            } finally {
+                if (version === productImageVersion) productImageProcessing = false;
             }
         }
 
@@ -1768,6 +1833,14 @@ TUDO </h3>
 
         function handleSaveProduct(e) {
             e.preventDefault();
+            if (productImageProcessing) {
+                alert('Aguarde a foto terminar de ser ajustada.');
+                return;
+            }
+            if (productImageError && !document.getElementById('pImgUrl').value.trim()) {
+                alert('Selecione uma foto válida antes de salvar.');
+                return;
+            }
             const firestoreId = document.getElementById('pId').value;
             const name = document.getElementById('pName').value.trim();
             const price = parseFloat(document.getElementById('pPrice').value);
@@ -1790,6 +1863,11 @@ TUDO </h3>
                 img = imgUrlInput;
             }
 
+            if (new Blob([img]).size > PRODUCT_IMAGE_MAX_BYTES) {
+                alert('A imagem ainda está muito grande. Selecione a foto novamente para ajustá-la automaticamente.');
+                return;
+            }
+
             const productData = {
                 id: firestoreId ? products.find(p => p.firestoreId === firestoreId).id : Date.now(),
                 name, price, oldPrice, desc, category, available, isOffer, isFeatured, isNew, img, hidden: false
@@ -1808,6 +1886,10 @@ TUDO </h3>
         }
 
         function editProduct(firestoreId) {
+            productImageVersion++;
+            productImageProcessing = false;
+            productImageError = false;
+            imageStatus('');
             const p = products.find(item => item.firestoreId === firestoreId);
             if (!p) return;
 
@@ -1846,6 +1928,11 @@ TUDO </h3>
         }
 
         function resetForm() {
+            productImageVersion++;
+            productImageProcessing = false;
+            productImageError = false;
+            imageStatus('');
+            document.getElementById('pImgPreview').removeAttribute('src');
             document.getElementById('productForm').reset();
             document.getElementById('pId').value = '';
             document.getElementById('pImgPreview').style.display = 'none';
