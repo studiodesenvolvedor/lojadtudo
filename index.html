@@ -988,13 +988,21 @@ TUDO </h3>
                 </div>
 
                 <button type="button" class="btn-interest" style="margin-bottom:16px" onclick="toggleCategoryManager()" id="categoryToggle" aria-expanded="false" aria-controls="categoryManager">Gerenciar categorias</button>
-                <section id="categoryManager" class="payment-box" hidden>
+                <section class="payment-box" id="tabManager" style="margin-bottom:20px">
+<h4>Editar abas do catálogo</h4>
+<p class="payment-note">Altere os nomes e escolha quais abas aparecem na loja. Ocultar uma aba também oculta sua seção, sem apagar os produtos.</p>
+<div id="tabEditor"></div>
+<button type="button" class="btn-interest" onclick="saveCatalogTabs()" id="saveTabsBtn">Salvar abas</button>
+<p id="tabsStatus" role="status" style="margin-top:10px"></p>
+</section>
+<section id="categoryManager" class="payment-box" hidden>
                     <h4>Organizar categorias</h4>
                     <p class="payment-note">Adicione ou exclua categorias. A exclusão não apaga produtos; eles continuam visíveis em Todos. Todos e Ofertas são filtros fixos.</p>
                     <div style="display:flex;gap:8px;margin:14px 0;flex-wrap:wrap">
                         <input id="newCategory" class="form-control" maxlength="60" placeholder="Nome da nova categoria" aria-label="Nova categoria" style="flex:1;min-width:160px">
-                        <button type="button" class="btn-interest" style="width:auto" onclick="addCategory()">Adicionar</button>
+                        <button type="button" class="btn-interest" style="width:auto" id="addCategoryBtn" onclick="addCategory()">Adicionar</button>
                     </div>
+                    <p id="categoryStatus" role="status" aria-live="polite"></p>
                     <div id="categoryList"></div>
                 </section>
 
@@ -1142,8 +1150,75 @@ TUDO </h3>
         let cart = JSON.parse(localStorage.getItem('lojadtudo_cart')) || [];
         let activeCategory = 'Todos';
         let searchQuery = '';
+        const tabDefaults = {
+            ofertas: { label: 'Ofertas', hidden: false },
+            novidades: { label: 'Novidades', hidden: false },
+            destaques: { label: 'Destaques', hidden: false },
+            todos: { label: 'Ver todos', hidden: false }
+        };
+        let catalogTabs = JSON.parse(JSON.stringify(tabDefaults));
+        const tabsDoc = db.collection('configuracoes').doc('abasCatalogo');
+        function applyCatalogTabs() {
+            Object.keys(tabDefaults).forEach(key => {
+                const cfg = catalogTabs[key];
+                const link = document.querySelector('.quick-links a[href="#sec-' + key + '"]');
+                if (link) { link.style.display = cfg.hidden ? 'none' : ''; link.querySelector('span').textContent = cfg.label; }
+                const section = document.getElementById('sec-' + key);
+                const title = section.querySelector('.section-title');
+                if (title) {
+                    let label = title.querySelector('.tab-label');
+                    if (!label) {
+                        Array.from(title.childNodes).filter(n => n.nodeType === 3).forEach(n => n.remove());
+                        label = document.createElement('span'); label.className = 'tab-label'; title.append(' ', label);
+                    }
+                    label.textContent = cfg.label;
+                }
+                if (cfg.hidden) section.style.display = 'none';
+                else if (key === 'todos') section.style.display = '';
+            });
+        }
+        function renderTabEditor() {
+            const editor = document.getElementById('tabEditor'); editor.replaceChildren();
+            Object.keys(tabDefaults).forEach(key => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:14px 0';
+                const label = document.createElement('label'); label.style.cssText = 'flex:1;min-width:160px';
+                label.textContent = tabDefaults[key].label;
+                const input = document.createElement('input'); input.className = 'form-control'; input.id = 'tab-name-' + key; input.maxLength = 40; input.value = catalogTabs[key].label;
+                label.append(input);
+                const visibility = document.createElement('label');
+                const check = document.createElement('input'); check.type = 'checkbox'; check.id = 'tab-hide-' + key; check.checked = catalogTabs[key].hidden;
+                visibility.append(check, ' Ocultar aba'); row.append(label, visibility); editor.append(row);
+            });
+        }
+        async function saveCatalogTabs() {
+            const status = document.getElementById('tabsStatus');
+            if (!auth.currentUser) { status.textContent = 'Entre no painel para salvar as abas.'; return; }
+            const updated = {};
+            for (const key of Object.keys(tabDefaults)) {
+                const label = document.getElementById('tab-name-' + key).value.trim();
+                if (!label) { status.textContent = 'Preencha o nome de todas as abas.'; return; }
+                updated[key] = { label, hidden: document.getElementById('tab-hide-' + key).checked };
+            }
+            const button = document.getElementById('saveTabsBtn'); button.disabled = true; status.textContent = 'Salvando…';
+            try { await tabsDoc.set(updated); catalogTabs = updated; renderCatalog(); status.textContent = 'Abas salvas!'; }
+            catch (error) { status.textContent = 'Erro ao salvar abas: ' + error.message; }
+            finally { button.disabled = false; }
+        }
+
 
         document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('newCategory').addEventListener('keydown', event => {
+                if (event.key === 'Enter') { event.preventDefault(); addCategory(); }
+            });
+            renderTabEditor();
+            tabsDoc.onSnapshot(snapshot => {
+                const data = snapshot.exists ? snapshot.data() : {};
+                Object.keys(tabDefaults).forEach(key => {
+                    catalogTabs[key] = { label: typeof data[key]?.label === 'string' && data[key].label.trim() ? data[key].label : tabDefaults[key].label, hidden: data[key]?.hidden === true };
+                });
+                renderTabEditor(); renderCatalog();
+            }, error => { document.getElementById('tabsStatus').textContent = 'Erro ao carregar abas: ' + error.message; });
             updateWhatsappLinks();
             document.getElementById('cfgWhatsapp').value = whatsappNum;
             document.getElementById('cfgSort').value = currentSort;
@@ -1347,17 +1422,32 @@ TUDO </h3>
 
         async function addCategory() {
             const input = document.getElementById('newCategory');
-            const name = input.value.trim();
+            const status = document.getElementById('categoryStatus');
+            const button = document.getElementById('addCategoryBtn');
+            const name = input.value.trim().replace(/\s+/g, ' ');
+            if (button.disabled) return;
+            if (!auth.currentUser) { status.textContent = 'Entre no painel para adicionar categorias.'; return; }
             if (!categoryNameIsValid(name)) return;
+            button.disabled = true; status.textContent = 'Salvando categoria…';
             try {
-                await db.runTransaction(async transaction => {
+                const savedNames = await db.runTransaction(async transaction => {
                     const snapshot = await transaction.get(categoriesDoc);
-                    const names = snapshot.exists ? snapshot.data().nomes || [] : categories;
+                    const data = snapshot.exists ? snapshot.data() : {};
+                    const names = Array.isArray(data.nomes) ? data.nomes : categories;
                     if (names.some(c => c.toLocaleLowerCase('pt-BR') === name.toLocaleLowerCase('pt-BR'))) throw new Error('Essa categoria já existe.');
-                    transaction.set(categoriesDoc, { nomes: [...names, name] });
+                    const updated = [...names, name];
+                    transaction.set(categoriesDoc, { nomes: updated }, { merge: true });
+                    return updated;
                 });
-                input.value = '';
-            } catch (error) { alert('Erro ao adicionar categoria: ' + error.message); }
+                categories = savedNames;
+                renderCategoryControls(); renderCatalog();
+                input.value = ''; input.focus();
+                status.textContent = 'Categoria adicionada! Já está disponível no catálogo e no cadastro de produtos.';
+            } catch (error) {
+                status.textContent = error.code === 'permission-denied'
+                    ? 'Sem permissão para salvar. Atualize as regras de configuracoes/categorias no Firebase para autorizar sua conta.'
+                    : 'Erro ao adicionar categoria: ' + error.message;
+            } finally { button.disabled = false; }
         }
 
         async function deleteCategory(name) {
@@ -1478,6 +1568,7 @@ TUDO </h3>
             document.getElementById('sec-ofertas').style.display = (countOfertas > 0 && searchQuery === '' && activeCategory === 'Todos') ? 'block' : 'none';
             document.getElementById('sec-destaques').style.display = (countDestaques > 0 && searchQuery === '' && activeCategory === 'Todos') ? 'block' : 'none';
             document.getElementById('sec-novidades').style.display = (countNovidades > 0 && searchQuery === '' && activeCategory === 'Todos') ? 'block' : 'none';
+            applyCatalogTabs();
         }
 
         function createProductCard(product) {
