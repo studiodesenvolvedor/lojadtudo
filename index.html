@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOJA D TUDO | Catálogo Digital</title>
+    <title>LOJA DTUDO | Catálogo Digital</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -806,13 +806,13 @@
     <div class="app-container">
         <header>
             <div class="logo-container">
-                <svg class="logo-img" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Loja D Tudo">
+                <svg class="logo-img" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Loja DTudo">
                     <defs><linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f232d4"/><stop offset="100%" stop-color="#ff93d6"/></linearGradient></defs>
                     <circle cx="100" cy="100" r="96" fill="url(#logoGradient)"/>
                     <text x="100" y="111" font-family="'Poppins', sans-serif" font-size="26" font-weight="700" fill="#1d1420" text-anchor="middle">LOJA DTUDO</text>
                 </svg>
             </div>
-            <h1 class="store-name">LOJA <span>D TUDO</span></h1>
+            <h1 class="store-name">LOJA <span>DTUDO</span></h1>
             <p class="store-slogan">Tudo em um só lugar! Confira nossos produtos  💗</p>
             
             <a href="https://www.instagram.com/lojadtudo_dl/" id="topWhatsappBtn" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-top">
@@ -914,13 +914,14 @@
     </div>
 
     <footer>
-        <svg class="footer-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Loja D Tudo">
+        <svg class="footer-logo" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Loja DTudo">
             <defs><linearGradient id="footerLogoGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#f232d4"/><stop offset="100%" stop-color="#ff93d6"/></linearGradient></defs>
             <circle cx="100" cy="100" r="96" fill="url(#footerLogoGradient)"/>
             <text x="100" y="111" font-family="'Poppins', sans-serif" font-size="26" font-weight="700" fill="#1d1420" text-anchor="middle">LOJA DTUDO</text>
         </svg>
-        <h3 style="font-size: 1.1rem; font-weight: 700;">LOJA D TUDO </h3>
-        <p style="font-size: 0.8rem; color: var(--text-gray);">Makes, acessórios e papelaria — aqui você encontra D Tudo! 💗</p>
+        <h3 style="font-size: 1.1rem; font-weight: 700;">LOJA D
+TUDO </h3>
+        <p style="font-size: 0.8rem; color: var(--text-gray);">Makes, acessórios e papelaria — aqui você encontra DaTudo! 💗</p>
         <p style="font-size: 0.8rem; color: var(--text-gray); margin-top: 7px;"><i class="fa-solid fa-location-dot" style="color: var(--accent-gold);"></i> Rua São Francisco, nº 235, Centro, Demerval Lobão/PI</p>
 
         <div style="margin: 15px 0;">
@@ -930,12 +931,12 @@
         </div>
 
         <div class="social-links">
-            <a href="https://www.instagram.com/lojadtudo_dl/" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Instagram da Loja D Tudo"><i class="fa-brands fa-instagram"></i></a>
+            <a href="https://www.instagram.com/lojadtudo_dl/" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Instagram da Loja DTudo"><i class="fa-brands fa-instagram"></i></a>
             <a href="#" id="socialWa" target="_blank" class="social-btn"><i class="fa-brands fa-whatsapp"></i></a>
-            <a href="https://www.google.com/maps/search/?api=1&amp;query=Rua+S%C3%A3o+Francisco+235+Centro+Demerval+Lob%C3%A3o+PI" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Localização da Loja D Tudo"><i class="fa-solid fa-location-dot"></i></a>
+            <a href="https://www.google.com/maps/search/?api=1&amp;query=Rua+S%C3%A3o+Francisco+235+Centro+Demerval+Lob%C3%A3o+PI" target="_blank" rel="noopener noreferrer" class="social-btn" aria-label="Localização da Loja DTudo"><i class="fa-solid fa-location-dot"></i></a>
         </div>
 
-        <p class="copyright">&copy; Loja D Tudo — Todos os direitos reservados.</p>
+        <p class="copyright">&copy; Loja DTudo — Todos os direitos reservados.</p>
     </footer>
 
     <div class="modal-overlay" id="productModal">
@@ -1181,7 +1182,7 @@
         });
 
         function updateWhatsappLinks() {
-            const defaultMsg = encodeURIComponent("Olá! Vim pelo catálogo da Loja D Tudo e gostaria de mais informações!");
+            const defaultMsg = encodeURIComponent("Olá! Vim pelo catálogo da Loja DTudo e gostaria de mais informações!");
             const waUrl = whatsappNum ? `https://wa.me/${whatsappNum}?text=${defaultMsg}` : INSTAGRAM_URL;
             const contactIcon = whatsappNum ? 'fa-whatsapp' : 'fa-instagram';
             const contactLabel = whatsappNum ? 'FALAR NO WHATSAPP' : 'FALAR NO INSTAGRAM';
@@ -1314,7 +1315,7 @@
                 return `${index + 1}. ${item.name}\nQuantidade: ${item.qty}\nSubtotal: R$ ${subtotal.toFixed(2).replace('.', ',')}`;
             });
             const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-            const message = `Olá! Vim pelo catálogo da Loja D Tudo e gostaria de fazer este pedido:\n\n${lines.join('\n\n')}\n\nTOTAL: R$ ${total.toFixed(2).replace('.', ',')}\nFORMA DE PAGAMENTO: ${payment}\n\nPor favor, confirme a disponibilidade e as condições de entrega.`;
+            const message = `Olá! Vim pelo catálogo da Loja DTudo e gostaria de fazer este pedido:\n\n${lines.join('\n\n')}\n\nTOTAL: R$ ${total.toFixed(2).replace('.', ',')}\nFORMA DE PAGAMENTO: ${payment}\n\nPor favor, confirme a disponibilidade e as condições de entrega.`;
             window.open(`https://wa.me/${whatsappNum}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
         }
 
