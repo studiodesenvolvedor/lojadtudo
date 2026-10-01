@@ -939,7 +939,7 @@ TUDO </h3>
         <p class="copyright">&copy; Loja DTudo — Todos os direitos reservados.</p>
     </footer>
 
-    <div class="modal-overlay" id="productModal">
+    <div class="modal-overlay" id="productModal" role="dialog" aria-modal="true" aria-labelledby="mTitle" style="background:var(--bg-dark)">
         <div class="modal-content">
             <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
             <div class="modal-img-wrap">
@@ -952,7 +952,8 @@ TUDO </h3>
                 <span id="mBadge" class="tag-off" style="position:static;"></span>
             </div>
             <div id="mStatus" class="product-status" style="margin-bottom: 12px; font-size: 0.85rem;"></div>
-            <p id="mDesc" class="modal-desc"></p>
+            <p id="mDesc" class="modal-desc" style="white-space:pre-wrap"></p>
+            <div id="mGallery" style="display:grid;gap:14px;margin:16px 0"></div>
             
             <div class="modal-info-group">
                 <div id="mColors"><strong>Cores:</strong> <span id="mColorsVal">Diversas</span></div>
@@ -1075,8 +1076,8 @@ TUDO </h3>
                         <div class="image-upload-area" onclick="document.getElementById('pImgFile').click()">
                             <i class="fa-solid fa-camera" style="font-size: 1.5rem; color: var(--accent-gold);"></i>
                             <p style="font-size: 0.8rem; margin-top: 5px;">📷 Clique para selecionar foto ou informe a URL</p>
-                            <input type="file" id="pImgFile" accept="image/*" style="display:none;" onchange="previewImageFile(this)">
-                            <img id="pImgPreview" class="img-preview" alt="Preview">
+                            <input type="file" id="pImgFile" accept="image/*" multiple style="display:none;" onchange="previewImageFile(this)">
+                            <img id="pImgPreview" class="img-preview" alt="Preview"><div id="pGallery" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px" onclick="event.stopPropagation()"></div>
                         </div>
                         <input type="text" id="pImgUrl" class="form-control" placeholder="Ou cole a URL da imagem aqui">
                     </div>
@@ -1550,15 +1551,15 @@ TUDO </h3>
                     gridTodos.appendChild(card);
                 } else {
                     if (p.isOffer && activeCategory === 'Todos') {
-                        gridOfertas.appendChild(card.cloneNode(true));
+                        gridOfertas.appendChild(createProductCard(p));
                         countOfertas++;
                     }
                     if (p.isFeatured && activeCategory === 'Todos') {
-                        gridDestaques.appendChild(card.cloneNode(true));
+                        gridDestaques.appendChild(createProductCard(p));
                         countDestaques++;
                     }
                     if (p.isNew && activeCategory === 'Todos') {
-                        gridNovidades.appendChild(card.cloneNode(true));
+                        gridNovidades.appendChild(createProductCard(p));
                         countNovidades++;
                     }
                     gridTodos.appendChild(card);
@@ -1619,6 +1620,18 @@ TUDO </h3>
             if (!product) return;
 
             document.getElementById('mImg').src = product.img;
+            const gallery = document.getElementById('mGallery');
+            gallery.replaceChildren();
+            const photos = Array.isArray(product.images) && product.images.length ? product.images : [product.img];
+            document.getElementById('mImg').alt = product.name;
+            photos.slice(1).forEach((src, index) => {
+                const photo = document.createElement('img');
+                photo.src = src;
+                photo.alt = product.name + ' — foto ' + (index + 2);
+                photo.loading = 'lazy';
+                photo.style.cssText = 'display:block;width:100%;height:auto;max-height:650px;object-fit:contain;border-radius:10px';
+                gallery.append(photo);
+            });
             document.getElementById('mTitle').innerText = product.name;
             document.getElementById('mDesc').innerText = product.desc;
             document.getElementById('mCatVal').innerText = product.category;
@@ -1659,10 +1672,13 @@ TUDO </h3>
             }
 
             document.getElementById('productModal').classList.add('active');
+            document.getElementById('productModal').querySelector('.modal-content').scrollTop = 0;
+            document.body.style.overflow = 'hidden';
         }
 
         function closeModal() {
             document.getElementById('productModal').classList.remove('active');
+            document.body.style.overflow = ''; 
         }
 
         function openAdminModal() {
@@ -1731,8 +1747,67 @@ TUDO </h3>
         }
 
         const PRODUCT_IMAGE_MAX_BYTES = 650000;
+        let productSaveInProgress = false;
+        let productPhotos = [];
+        function renderProductPhotos() {
+            const gallery = document.getElementById('pGallery');
+            gallery.replaceChildren();
+            productPhotos.forEach((src, index) => {
+                const wrap = document.createElement('div');
+                const photo = document.createElement('img');
+                photo.src = src;
+                photo.style.cssText = 'width:70px;height:70px;object-fit:cover;border-radius:6px';
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.textContent = 'Remover';
+                remove.onclick = () => {
+                    productPhotos.splice(index, 1);
+                    const preview = document.getElementById('pImgPreview');
+                    preview.src = productPhotos[0] || '';
+                    preview.style.display = productPhotos.length ? 'block' : 'none';
+                    renderProductPhotos();
+                };
+                wrap.append(photo, remove);
+                gallery.append(wrap);
+            });
+        }
+        async function prepareGalleryForSave(sources) {
+            const budget = Math.floor(350000 / Math.max(1, sources.length));
+            const results = [];
+            for (const source of sources) {
+                if (/^(data:image\/|blob:)/i.test(source)) {
+                    const response = await fetch(source);
+                    if (!response.ok) throw new Error('Não foi possível ler uma das fotos.');
+                    results.push((await resizeProductImage(await response.blob(), budget)).data);
+                } else {
+                    if (new Blob([source]).size > budget) throw new Error('O link da foto é muito longo. Envie a imagem como arquivo.');
+                    results.push(source);
+                }
+            }
+            return results;
+        }
+
+        async function prepareImageForSave(source) {
+            const value = String(source || '').trim();
+            if (/^data:image\//i.test(value) || /^blob:/i.test(value)) {
+                imageStatus('Conferindo e ajustando a foto antes de salvar…');
+                const response = await fetch(value);
+                if (!response.ok) throw new Error('Não foi possível ler a foto. Selecione-a novamente.');
+                const result = await resizeProductImage(await response.blob());
+                if (new Blob([result.data]).size > PRODUCT_IMAGE_MAX_BYTES) {
+                    throw new Error('Não foi possível reduzir a foto. Selecione outra imagem.');
+                }
+                imageStatus('Foto pronta para salvar.');
+                return result.data;
+            }
+            if (new Blob([value]).size > PRODUCT_IMAGE_MAX_BYTES) {
+                throw new Error('O link da imagem é muito grande. Selecione a foto pelo botão de arquivo.');
+            }
+            return value;
+        }
         let productImageVersion = 0;
         let productImageProcessing = false;
+        let productImageTask = Promise.resolve();
         let productImageError = false;
 
         function imageStatus(message) {
@@ -1747,7 +1822,7 @@ TUDO </h3>
             status.textContent = message;
         }
 
-        async function resizeProductImage(file) {
+        async function resizeProductImage(file, maxBytes = PRODUCT_IMAGE_MAX_BYTES) {
             const url = URL.createObjectURL(file);
             try {
                 const photo = await new Promise((resolve, reject) => {
@@ -1758,7 +1833,7 @@ TUDO </h3>
                 });
                 let scale = Math.min(1, 800 / Math.max(photo.naturalWidth, photo.naturalHeight));
                 const canvas = document.createElement('canvas');
-                for (let attempt = 0; attempt < 10; attempt++) {
+                for (let attempt = 0; attempt < 16; attempt++) {
                     canvas.width = Math.max(1, Math.round(photo.naturalWidth * scale));
                     canvas.height = Math.max(1, Math.round(photo.naturalHeight * scale));
                     const ctx = canvas.getContext('2d');
@@ -1768,7 +1843,7 @@ TUDO </h3>
                     ctx.drawImage(photo, 0, 0, canvas.width, canvas.height);
                     for (const quality of [0.85, 0.75, 0.65, 0.55]) {
                         const data = canvas.toDataURL('image/jpeg', quality);
-                        if (data.startsWith('data:image/jpeg') && new Blob([data]).size <= PRODUCT_IMAGE_MAX_BYTES) {
+                        if (data.startsWith('data:image/') && new Blob([data]).size <= maxBytes) {
                             return { data, width: canvas.width, height: canvas.height };
                         }
                     }
@@ -1780,29 +1855,38 @@ TUDO </h3>
             }
         }
 
-        async function previewImageFile(input) {
-            const file = input.files && input.files[0];
-            if (!file) return;
+        function previewImageFile(input) {
+            productImageTask = processProductImageFile(input);
+            return productImageTask;
+        }
+
+        async function processProductImageFile(input) {
+            const files = Array.from(input.files || []);
+            if (!files.length) return;
             const version = ++productImageVersion;
             productImageProcessing = true;
             productImageError = false;
-            const preview = document.getElementById('pImgPreview');
-            preview.removeAttribute('src');
-            preview.style.display = 'none';
-            imageStatus('Ajustando a foto…');
+            imageStatus('Ajustando as fotos…');
             try {
-                const result = await resizeProductImage(file);
-                if (version !== productImageVersion) return;
-                preview.src = result.data;
+                const added = [];
+                for (const file of files) {
+                    const result = await resizeProductImage(file);
+                    if (version !== productImageVersion) return;
+                    added.push(result.data);
+                }
+                productPhotos.push(...added);
+                const preview = document.getElementById('pImgPreview');
+                preview.src = productPhotos[0];
                 preview.style.display = 'block';
                 document.getElementById('pImgUrl').value = '';
-                imageStatus('Foto pronta: ' + result.width + ' × ' + result.height + ' pixels.');
+                renderProductPhotos();
+                imageStatus(productPhotos.length + ' fotos prontas. A primeira será a capa.');
             } catch (error) {
                 if (version !== productImageVersion) return;
                 productImageError = true;
                 imageStatus(error.message);
-                input.value = '';
             } finally {
+                input.value = '';
                 if (version === productImageVersion) productImageProcessing = false;
             }
         }
@@ -1831,11 +1915,11 @@ TUDO </h3>
             });
         }
 
-        function handleSaveProduct(e) {
+        async function handleSaveProduct(e) {
             e.preventDefault();
             if (productImageProcessing) {
-                alert('Aguarde a foto terminar de ser ajustada.');
-                return;
+                imageStatus('Ajustando a foto para salvar…');
+                await productImageTask;
             }
             if (productImageError && !document.getElementById('pImgUrl').value.trim()) {
                 alert('Selecione uma foto válida antes de salvar.');
@@ -1857,32 +1941,52 @@ TUDO </h3>
             const imgUrlInput = document.getElementById('pImgUrl').value.trim();
             
             let img = "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&q=80";
-            if (imgPreview.style.display === 'block' && imgPreview.src) {
-                img = imgPreview.src;
-            } else if (imgUrlInput) {
+            if (imgUrlInput) {
                 img = imgUrlInput;
+            } else if (imgPreview.style.display === 'block' && imgPreview.src) {
+                img = imgPreview.src;
             }
 
-            if (new Blob([img]).size > PRODUCT_IMAGE_MAX_BYTES) {
-                alert('A imagem ainda está muito grande. Selecione a foto novamente para ajustá-la automaticamente.');
+            if (productSaveInProgress) return;
+            productSaveInProgress = true;
+            const saveButton = document.querySelector('#productForm button[type="submit"]');
+            if (saveButton) saveButton.disabled = true;
+            let images;
+            try {
+                const sources = productPhotos.length ? [...productPhotos] : [img];
+                if (imgUrlInput && !sources.includes(imgUrlInput)) sources.unshift(imgUrlInput);
+                images = await prepareGalleryForSave(sources);
+                img = images[0];
+            } catch (error) {
+                productSaveInProgress = false;
+                if (saveButton) saveButton.disabled = false;
+                alert(error.message);
                 return;
             }
 
             const productData = {
-                id: firestoreId ? products.find(p => p.firestoreId === firestoreId).id : Date.now(),
-                name, price, oldPrice, desc, category, available, isOffer, isFeatured, isNew, img, hidden: false
+                id: firestoreId ? (products.find(p => p.firestoreId === firestoreId)?.id || Date.now()) : Date.now(),
+                name, price, oldPrice, desc, category, available, isOffer, isFeatured, isNew, img, images, hidden: false
             };
 
-            const request = firestoreId 
-                ? db.collection("produtos").doc(firestoreId).update(productData)
-                : db.collection("produtos").add(productData);
-
-            request.then(() => {
+            try {
+                // Check the final payload immediately before sending it.
+                if (new Blob([productData.img]).size > PRODUCT_IMAGE_MAX_BYTES) {
+                    throw new Error('A foto excede o tamanho permitido. Selecione outra foto.');
+                }
+                if (new Blob([JSON.stringify(productData)]).size > 900000) {
+                    throw new Error('O produto contém dados demais. Reduza a descrição ou selecione outra foto.');
+                }
+                if (firestoreId) await db.collection("produtos").doc(firestoreId).update(productData);
+                else await db.collection("produtos").add(productData);
                 resetForm();
                 alert('Produto salvo com sucesso no Firebase!');
-            }).catch(error => {
+            } catch (error) {
                 alert('Erro ao salvar: ' + error.message);
-            });
+            } finally {
+                productSaveInProgress = false;
+                if (saveButton) saveButton.disabled = false;
+            }
         }
 
         function editProduct(firestoreId) {
@@ -1905,7 +2009,10 @@ TUDO </h3>
             document.getElementById('pIsFeatured').checked = p.isFeatured;
             document.getElementById('pIsNew').checked = p.isNew;
 
-            document.getElementById('pImgUrl').value = p.img.startsWith('data:') ? '' : p.img;
+            productPhotos = Array.isArray(p.images) && p.images.length ? [...p.images] : [p.img];
+            renderProductPhotos();
+            document.getElementById('pImgFile').value = '';
+            document.getElementById('pImgUrl').value = '';
             
             const preview = document.getElementById('pImgPreview');
             preview.src = p.img;
@@ -1934,6 +2041,8 @@ TUDO </h3>
             imageStatus('');
             document.getElementById('pImgPreview').removeAttribute('src');
             document.getElementById('productForm').reset();
+            productPhotos = [];
+            renderProductPhotos();
             document.getElementById('pId').value = '';
             document.getElementById('pImgPreview').style.display = 'none';
             document.getElementById('formAdminTitle').innerText = "+ Adicionar Novo Produto";
